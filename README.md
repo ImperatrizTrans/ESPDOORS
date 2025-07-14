@@ -1,2 +1,0 @@
-# ESPDOORS
-Script
