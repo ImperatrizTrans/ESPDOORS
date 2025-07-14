@@ -1,0 +1,163 @@
+-- Gaby's Explorer-Style ESP (English - Room 50 Supported, Clean) 💖
+
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local Camera = Workspace.CurrentCamera
+local LocalPlayer = Players.LocalPlayer
+
+-- Settings
+local distanceLimit = 200
+local espTargets = {
+	["Door"] = Color3.fromRGB(0, 170, 255),     -- Blue
+	["Key"] = Color3.fromRGB(0, 255, 0),        -- Green
+	["Flashlight"] = Color3.fromRGB(0, 255, 0),
+	["Vitamin"] = Color3.fromRGB(0, 255, 0),
+	["Entity"] = Color3.fromRGB(255, 0, 0),     -- Red
+	["Book"] = Color3.fromRGB(255, 255, 0),     -- Yellow
+}
+
+-- Get ESP color by name
+local function getColor(name)
+	for keyword, color in pairs(espTargets) do
+		if string.find(string.lower(name), string.lower(keyword)) then
+			return color
+		end
+	end
+	return nil
+end
+
+-- 🔍 Filter: allows useful objects only, including Room 50, no clutter
+local function isImportantObject(obj)
+	if not obj:IsA("BasePart") then return false end
+	if obj:IsDescendantOf(Camera) then return false end
+
+	local name = string.lower(obj.Name)
+	local fullName = string.lower(obj:GetFullName())
+
+	-- ❌ Block useless things (Room 50 clutter)
+	local blocked = {"mesh", "cube", "bookshelf", "plank", "librarydecor", "part", "shelf"}
+	for _, word in pairs(blocked) do
+		if string.find(name, word) or string.find(fullName, word) then
+			return false
+		end
+	end
+
+	-- ✅ Allow useful names
+	local allowed = {"door", "key", "flashlight", "vitamin", "entity", "book"}
+	for _, word in pairs(allowed) do
+		if string.find(name, word) then
+			return true
+		end
+	end
+
+	return false
+end
+
+-- Billboard GUI (Name + Distance)
+local function createBillboard(obj, color)
+	if obj:FindFirstChild("NameESP") then return end
+
+	local gui = Instance.new("BillboardGui")
+	gui.Name = "NameESP"
+	gui.Adornee = obj
+	gui.Size = UDim2.new(0, 100, 0, 40)
+	gui.StudsOffset = Vector3.new(0, 2, 0)
+	gui.AlwaysOnTop = true
+
+	local label = Instance.new("TextLabel")
+	label.Name = "DistanceLabel"
+	label.Size = UDim2.new(1, 0, 1, 0)
+	label.BackgroundTransparency = 1
+	label.TextColor3 = color
+	label.TextStrokeTransparency = 0.3
+	label.Font = Enum.Font.GothamBold
+	label.TextScaled = true
+	label.Text = obj.Name
+	label.Parent = gui
+
+	gui.Parent = obj
+end
+
+-- 3D Box ESP
+local function createBoxESP(obj, color)
+	if obj:FindFirstChild("BoxESP") then return end
+
+	local box = Instance.new("BoxHandleAdornment")
+	box.Name = "BoxESP"
+	box.Adornee = obj
+	box.AlwaysOnTop = true
+	box.ZIndex = 10
+	box.Color3 = color
+	box.Transparency = 0.5
+	box.Size = obj.Size
+	box.Parent = obj
+end
+
+-- Tracer Beam from Camera
+local function createTracer(obj, color)
+	if obj:FindFirstChild("ESPTracer") then return end
+
+	local camAttach = Instance.new("Attachment", Camera)
+	camAttach.Name = "Start_" .. obj:GetDebugId()
+
+	local objAttach = Instance.new("Attachment", obj)
+	objAttach.Name = "End_" .. obj:GetDebugId()
+
+	local beam = Instance.new("Beam")
+	beam.Name = "ESPTracer"
+	beam.Attachment0 = camAttach
+	beam.Attachment1 = objAttach
+	beam.FaceCamera = true
+	beam.Width0 = 0.05
+	beam.Width1 = 0.05
+	beam.Color = ColorSequence.new(color)
+	beam.Transparency = NumberSequence.new(0.2)
+	beam.Parent = Camera
+end
+
+-- Apply full ESP to an object
+local function applyESP(obj)
+	if not isImportantObject(obj) then return end
+
+	local color = getColor(obj.Name)
+	if not color then return end
+
+	local char = LocalPlayer.Character
+	if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+
+	local dist = (char.HumanoidRootPart.Position - obj.Position).Magnitude
+	if dist > distanceLimit then return end
+
+	createBillboard(obj, color)
+	createBoxESP(obj, color)
+	createTracer(obj, color)
+end
+
+-- Update distance text live
+RunService.RenderStepped:Connect(function()
+	local char = LocalPlayer.Character
+	if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+
+	for _, obj in pairs(Workspace:GetDescendants()) do
+		if obj:IsA("BasePart") and obj:FindFirstChild("NameESP") then
+			local label = obj.NameESP:FindFirstChild("DistanceLabel")
+			if label then
+				local dist = (char.HumanoidRootPart.Position - obj.Position).Magnitude
+				label.Text = obj.Name .. " - " .. math.floor(dist) .. "m"
+			end
+		end
+	end
+end)
+
+-- Watch for new objects
+Workspace.DescendantAdded:Connect(function(obj)
+	task.delay(0.1, function()
+		applyESP(obj)
+	end)
+end)
+
+-- Apply ESP to all existing objects
+for _, obj in ipairs(Workspace:GetDescendants()) do
+	applyESP(obj)
+end
